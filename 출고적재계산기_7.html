@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>출고 적재 계산기</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root{
+  --bg:#f2f4f8;--card:#fff;--border:#e5e8ef;--t1:#1a1d23;--t2:#6b7280;--t3:#9ca3af;
+  --blue:#3b82f6;--green:#22c55e;--red:#ef4444;--orange:#f59e0b;--indigo:#6366f1;
+  --radius:14px;--shadow:0 2px 12px rgba(0,0,0,.07);
+}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#0f1117;--card:#1c1f2e;--border:#2d3147;--t1:#e8eaf0;--t2:#9ea3b8;--t3:#5c6070;}
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--t1);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;}
+.app{display:none;flex-direction:column;height:100vh;max-width:480px;margin:0 auto;}
+.top-bar{background:var(--card);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.top-bar .logo{font-size:16px;font-weight:700;color:var(--t1);}
+.top-bar .user-info{font-size:13px;color:var(--t2);display:flex;align-items:center;gap:8px;}
+.top-bar .logout-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--t2);cursor:pointer;}
+.tab-bar{background:var(--card);border-bottom:1px solid var(--border);display:flex;flex-shrink:0;}
+.tab{flex:1;padding:12px 4px;font-size:12px;font-weight:500;color:var(--t3);border:none;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;transition:color .2s;}
+.tab i{font-size:18px;}
+.tab.active{color:var(--blue);}
+.tab.active::after{content:'';display:block;height:2px;background:var(--blue);border-radius:2px 2px 0 0;position:absolute;bottom:0;left:0;right:0;}
+.tab{position:relative;}
+.content{flex:1;overflow-y:auto;padding:16px;}
+.section{display:none;}
+.section.active{display:block;}
+.card{background:var(--card);border-radius:var(--radius);padding:16px;margin-bottom:12px;box-shadow:var(--shadow);}
+.card-title{font-size:14px;font-weight:600;color:var(--t1);margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+.inp{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:15px;color:var(--t1);outline:none;}
+.inp:focus{border-color:var(--blue);}
+.fl{display:flex;gap:8px;align-items:stretch;}
+.btn{border:none;border-radius:10px;padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .15s;}
+.btn:active{opacity:.75;}
+.btn-primary{background:var(--blue);color:#fff;}
+.btn-ok{background:var(--green);color:#fff;width:100%;}
+.btn-danger{background:var(--red);color:#fff;}
+.btn-secondary{background:var(--bg);color:var(--t1);border:1px solid var(--border);}
+.btn-sm{padding:8px 12px;font-size:13px;}
+.btn-full{width:100%;}
+.veh-match{background:linear-gradient(135deg,#e0f2fe,#dbeafe);border-radius:10px;padding:12px;margin-top:8px;}
+.veh-match .vnum{font-size:18px;font-weight:700;color:#1e40af;}
+.veh-match .vinfo{font-size:13px;color:#3b82f6;margin-top:2px;}
+.search-wrap{position:relative;}
+.search-results{position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:10px;z-index:100;max-height:240px;overflow-y:auto;box-shadow:var(--shadow);margin-top:4px;}
+.sr-item{padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:8px;}
+.sr-item:last-child{border-bottom:none;}
+.sr-item:active{background:var(--bg);}
+.sr-item .sname{font-size:14px;font-weight:500;}
+.sr-item .scat{font-size:11px;color:var(--t3);background:var(--bg);padding:2px 7px;border-radius:20px;}
+.item-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);}
+.item-row:last-child{border-bottom:none;}
+.item-name{flex:1;font-size:14px;font-weight:500;}
+.item-qty{display:flex;align-items:center;gap:6px;}
+.item-qty button{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--bg);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.item-qty .qval{min-width:32px;text-align:center;font-size:15px;font-weight:600;}
+.item-del{width:30px;height:30px;border-radius:8px;border:none;background:none;color:var(--red);font-size:18px;cursor:pointer;}
+.result-box{border-radius:12px;padding:14px;margin-top:10px;}
+.result-box.ok{background:#dcfce7;border:1px solid #86efac;}
+.result-box.warn{background:#fef9c3;border:1px solid #fde047;}
+.result-box.over{background:#fee2e2;border:1px solid #fca5a5;}
+.result-box .rt{font-size:16px;font-weight:700;margin-bottom:6px;}
+.result-box .rval{font-size:13px;color:var(--t2);line-height:1.7;}
+.cap-list{margin-top:10px;border-top:1px solid var(--border);padding-top:10px;}
+.cap-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;}
+.cap-badge{background:#ede9fe;color:#7c3aed;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600;}
+.done-wrap{margin-top:8px;}
+.hist-item{border-bottom:1px solid var(--border);padding:12px 0;}
+.hist-item:last-child{border-bottom:none;}
+.hist-header{display:flex;justify-content:space-between;margin-bottom:4px;}
+.hist-name{font-size:13px;font-weight:600;}
+.hist-time{font-size:11px;color:var(--t3);}
+.hist-detail{font-size:12px;color:var(--t2);line-height:1.6;}
+.hist-actions{display:flex;gap:6px;margin-top:8px;}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;}
+.badge-new{background:#fef3c7;color:#d97706;}
+.badge-done{background:#dcfce7;color:#15803d;}
+.empty{text-align:center;padding:40px 20px;color:var(--t3);}
+.empty i{font-size:40px;margin-bottom:8px;display:block;}
+/* Keypad */
+.kp-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end;}
+.kp-overlay.show{display:flex;}
+.kp-panel{background:var(--card);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;margin:0 auto;}
+.kp-display{text-align:center;font-size:32px;font-weight:700;letter-spacing:8px;margin-bottom:20px;min-height:44px;color:var(--t1);}
+.kp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.kp-btn{background:var(--bg);border:none;border-radius:12px;padding:18px;font-size:22px;font-weight:600;cursor:pointer;color:var(--t1);}
+.kp-btn:active{background:var(--border);}
+.kp-ok{background:var(--blue);color:#fff;}
+.kp-del{background:var(--border);}
+/* Login */
+.login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:var(--bg);}
+.login-card{background:var(--card);border-radius:20px;padding:32px 24px;width:100%;max-width:360px;box-shadow:var(--shadow);}
+.login-logo{font-size:22px;font-weight:800;text-align:center;margin-bottom:6px;color:var(--t1);}
+.login-sub{font-size:13px;color:var(--t2);text-align:center;margin-bottom:28px;}
+.field-label{font-size:12px;font-weight:600;color:var(--t2);margin-bottom:6px;}
+.field-wrap{margin-bottom:14px;}
+select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239ca3af' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px;}
+.pw-row{display:flex;align-items:center;gap:8px;}
+.pw-dots{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:22px;letter-spacing:6px;min-height:46px;color:var(--t1);}
+.err-msg{font-size:13px;color:var(--red);text-align:center;margin-top:10px;min-height:20px;}
+/* Vehicle card */
+.veh-card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:8px;}
+.veh-card-num{font-size:18px;font-weight:700;}
+.veh-card-info{font-size:13px;color:var(--t2);margin-top:2px;}
+.veh-card-actions{display:flex;gap:6px;margin-top:10px;}
+/* Scrollbar */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+/* User admin */
+.user-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);}
+.user-row:last-child{border-bottom:none;}
+.user-name{font-size:14px;font-weight:600;}
+.user-dept{font-size:12px;color:var(--t2);}
+.role-badge{padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;}
+.role-admin{background:#fce7f3;color:#be185d;}
+.role-sales{background:#dbeafe;color:#1d4ed8;}
+.role-support{background:#dcfce7;color:#15803d;}
+/* DB upload */
+.upload-area{border:2px dashed var(--border);border-radius:12px;padding:24px;text-align:center;cursor:pointer;transition:border-color .2s;}
+.upload-area:hover{border-color:var(--blue);}
+.upload-icon{font-size:36px;color:var(--t3);margin-bottom:8px;}
+.upload-label{font-size:14px;font-weight:500;color:var(--t2);}
+.upload-sub{font-size:12px;color:var(--t3);margin-top:4px;}
+</style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div class="login-screen" id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">🚚 출고 적재 계산기</div>
+    <div class="login-sub">로그인하여 시작하세요</div>
+    <div class="field-wrap">
+      <div class="field-label">이름 선택</div>
+      <select class="inp" id="login-name"></select>
+    </div>
+    <div class="field-wrap">
+      <div class="field-label">비밀번호</div>
+      <div class="pw-row">
+        <div class="pw-dots" id="pw-dots">_ _ _ _</div>
+        <button class="btn btn-secondary btn-sm" onclick="openKp('login')"><i class="ti ti-keyboard"></i></button>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-full" style="margin-top:8px" onclick="doLogin()"><i class="ti ti-login"></i> 로그인</button>
+    <div class="err-msg" id="login-err"></div>
+  </div>
+</div>
+
+<!-- App -->
+<div class="app" id="app">
+  <div class="top-bar">
+    <div class="logo">🚚 출고 적재 계산기</div>
+    <div class="user-info">
+      <span id="hdr-user"></span>
+      <button class="logout-btn" onclick="doLogout()"><i class="ti ti-logout"></i> 로그아웃</button>
+    </div>
+  </div>
+  <div class="tab-bar" id="tab-bar">
+    <button class="tab active" onclick="showTab('ship')" id="tab-ship"><i class="ti ti-truck"></i>출고</button>
+    <button class="tab" onclick="showTab('veh')" id="tab-veh"><i class="ti ti-car"></i>차량</button>
+    <button class="tab" onclick="showTab('hist')" id="tab-hist"><i class="ti ti-list"></i>내역</button>
+    <button class="tab" onclick="showTab('db')" id="tab-db"><i class="ti ti-database"></i>DB</button>
+    <button class="tab" onclick="showTab('users')" id="tab-users" style="display:none"><i class="ti ti-users"></i>사용자</button>
+  </div>
+  <div class="content">
+    <!-- 출고 탭 -->
+    <div class="section active" id="sec-ship">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-car"></i>차량 선택</div>
+        <div class="fl">
+          <input type="text" class="inp" id="s-veh" maxlength="4" inputmode="numeric" placeholder="차량번호 4자리" oninput="onSVeh(this.value)" style="flex:1;font-size:20px;letter-spacing:4px;text-align:center">
+          <button class="btn btn-secondary btn-sm" onclick="openKp('ship')"><i class="ti ti-keyboard"></i></button>
+        </div>
+        <div id="sveh-match" style="display:none"></div>
+        <div id="sveh-nomatch" style="display:none;font-size:13px;color:var(--red);margin-top:6px">❌ 등록되지 않은 차량입니다</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="ti ti-package"></i>제품 추가</div>
+        <div class="search-wrap">
+          <input type="text" class="inp" id="p-search" placeholder="제품명 검색 (초성·용량·품목명)" oninput="onPSearch(this.value)">
+          <div class="search-results" id="p-results" style="display:none"></div>
+        </div>
+      </div>
+
+      <div class="card" id="items-card" style="display:none">
+        <div class="card-title"><i class="ti ti-list-check"></i>출고 목록</div>
+        <div id="items-list"></div>
+      </div>
+
+      <div id="result-section" style="display:none">
+        <div id="result-box"></div>
+        <div class="card" id="cap-card" style="display:none">
+          <div class="card-title"><i class="ti ti-stack"></i>캡 박스 소요</div>
+          <div id="cap-list"></div>
+        </div>
+        <div class="card done-wrap" id="done-card" style="display:none">
+          <div class="card-title"><i class="ti ti-message-2"></i>기타 전달사항</div>
+          <textarea class="inp" id="msg-extra" placeholder="예) 오후 2시 출발 예정, 냉장 보관 필요 등 ..." rows="3" style="resize:none;line-height:1.6;font-size:14px;margin-bottom:10px"></textarea>
+          <div style="font-size:12px;color:var(--t2);margin-bottom:12px">✉️ 완료 버튼 클릭 시 출고정보 + 전달사항이 문자로 발송됩니다.</div>
+          <button class="btn btn-ok" onclick="doDone()"><i class="ti ti-send"></i> 출고 등록 완료 · 알림 발송</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 차량 탭 -->
+    <div class="section" id="sec-veh">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-search"></i>차량 조회</div>
+        <div class="fl">
+          <input type="text" class="inp" id="v-search" maxlength="4" inputmode="numeric" placeholder="4자리 검색" oninput="onVSearch(this.value)" style="flex:1;letter-spacing:4px;text-align:center;font-size:18px">
+          <button class="btn btn-secondary btn-sm" onclick="openKp('vsearch')"><i class="ti ti-keyboard"></i></button>
+        </div>
+        <div id="v-results" style="margin-top:10px"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-plus"></i>차량 등록/수정</div>
+        <div class="field-wrap">
+          <div class="field-label">차량번호 4자리</div>
+          <div class="fl">
+            <input type="text" class="inp" id="v-num" maxlength="4" inputmode="numeric" placeholder="예: 1234" oninput="onVN(this.value)" style="flex:1;letter-spacing:4px;text-align:center;font-size:20px">
+            <button class="btn btn-secondary btn-sm" onclick="openKp('reg')"><i class="ti ti-keyboard"></i></button>
+          </div>
+        </div>
+        <div class="field-wrap">
+          <div class="field-label">기사 전화번호</div>
+          <input type="tel" class="inp" id="v-tel" placeholder="010-0000-0000" inputmode="numeric" oninput="fmtTel(this)">
+        </div>
+        <div class="field-wrap">
+          <div class="field-label">적재함 크기 (mm) — 장 × 폭 × 고</div>
+          <div class="fl">
+            <input type="number" class="inp" id="v-L" placeholder="장" inputmode="numeric" style="text-align:center">
+            <input type="number" class="inp" id="v-W" placeholder="폭" inputmode="numeric" style="text-align:center">
+            <input type="number" class="inp" id="v-H" placeholder="고" inputmode="numeric" style="text-align:center">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button class="btn btn-primary btn-full" onclick="saveVeh()"><i class="ti ti-device-floppy"></i> 저장</button>
+          <button class="btn btn-secondary" onclick="clearVForm()"><i class="ti ti-x"></i></button>
+        </div>
+        <div id="v-msg" style="font-size:13px;margin-top:8px;min-height:20px"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-list"></i>등록 차량 목록</div>
+        <div id="veh-list"></div>
+      </div>
+    </div>
+
+    <!-- 내역 탭 -->
+    <div class="section" id="sec-hist">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-history"></i>출고 등록 내역</div>
+        <div id="hist-list"></div>
+      </div>
+    </div>
+
+    <!-- DB 탭 -->
+    <div class="section" id="sec-db">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-database-import"></i>제품 DB 업데이트</div>
+        <p style="font-size:13px;color:var(--t2);margin-bottom:14px;line-height:1.6">출고제품_통합DB.xlsx 파일을 업로드하면 제품 데이터가 최신화됩니다.</p>
+        <label class="upload-area" for="db-file">
+          <div class="upload-icon"><i class="ti ti-folder-open"></i></div>
+          <div class="upload-label">파일 선택</div>
+          <div class="upload-sub" id="db-file-name">출고제품_통합DB.xlsx</div>
+        </label>
+        <input type="file" id="db-file" accept=".xlsx" style="display:none" onchange="onDBFile(this)">
+        <div id="db-msg" style="font-size:13px;margin-top:10px;min-height:20px"></div>
+        <div style="font-size:12px;color:var(--t3);margin-top:8px">
+          ⚠️ 브라우저에서는 xlsx 직접 파싱이 제한됩니다. 현재 내장된 DB를 사용 중입니다. (<span id="db-count"></span>개 제품)
+        </div>
+      </div>
+    </div>
+
+    <!-- 사용자 관리 탭 -->
+    <div class="section" id="sec-users">
+      <div class="card">
+        <div class="card-title"><i class="ti ti-user-plus"></i>사용자 추가</div>
+        <div class="fl" style="flex-wrap:wrap;gap:8px">
+          <input type="text" class="inp" id="u-name" placeholder="이름" style="flex:1;min-width:100px">
+          <input type="tel" class="inp" id="u-tel" placeholder="전화번호" style="flex:1;min-width:120px">
+          <input type="text" class="inp" id="u-dept" placeholder="부서" style="flex:1;min-width:80px">
+          <select class="inp" id="u-role" style="flex:1;min-width:100px">
+            <option value="sales">영업팀</option>
+            <option value="support">지원팀</option>
+            <option value="admin">admin</option>
+          </select>
+          <input type="text" class="inp" id="u-pw" placeholder="비밀번호" style="flex:1;min-width:80px" inputmode="numeric">
+        </div>
+        <button class="btn btn-primary btn-full" style="margin-top:10px" onclick="addUser()"><i class="ti ti-plus"></i> 추가</button>
+        <div id="u-msg" style="font-size:13px;margin-top:8px;min-height:20px"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-users"></i>사용자 목록</div>
+        <div id="user-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Keypad -->
+<div class="kp-overlay" id="kp-overlay" onclick="kpBg(event)">
+  <div class="kp-panel">
+    <div class="kp-display" id="kp-display">_ _ _ _</div>
+    <div class="kp-grid">
+      <button class="kp-btn" onclick="kpPress('1')">1</button>
+      <button class="kp-btn" onclick="kpPress('2')">2</button>
+      <button class="kp-btn" onclick="kpPress('3')">3</button>
+      <button class="kp-btn" onclick="kpPress('4')">4</button>
+      <button class="kp-btn" onclick="kpPress('5')">5</button>
+      <button class="kp-btn" onclick="kpPress('6')">6</button>
+      <button class="kp-btn" onclick="kpPress('7')">7</button>
+      <button class="kp-btn" onclick="kpPress('8')">8</button>
+      <button class="kp-btn" onclick="kpPress('9')">9</button>
+      <button class="kp-btn kp-del" onclick="kpDel()"><i class="ti ti-backspace"></i></button>
+      <button class="kp-btn" onclick="kpPress('0')">0</button>
+      <button class="kp-btn kp-ok" onclick="kpOk()"><i class="ti ti-check"></i></button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+
+// ══════════════════════════════════════════════
+//  DATA
+// ══════════════════════════════════════════════
+const P_DEFAULT = [{"cat": "김치류", "name": "100g 김치", "box": 480, "cap": "100g 캡", "capBox": 480, "hasCap": true, "L": 635, "W": 465, "H": 470}, {"cat": "김치류", "name": "1KG", "box": 200, "cap": "700g 캡", "capBox": 200, "hasCap": true, "L": 955, "W": 600, "H": 605}, {"cat": "김치류", "name": "200g 공통", "box": 240, "cap": "200g 캡", "capBox": 720, "hasCap": true, "L": 650, "W": 490, "H": 370}, {"cat": "김치류", "name": "300g 공통", "box": 200, "cap": "300g 캡", "capBox": 600, "hasCap": true, "L": 745, "W": 465, "H": 419}, {"cat": "김치류", "name": "300g 광구", "box": 210, "cap": "400g 캡", "capBox": 420, "hasCap": true, "L": 740, "W": 525, "H": 413}, {"cat": "김치류", "name": "350g (400g소)", "box": 210, "cap": "", "capBox": 0, "hasCap": false, "L": 761, "W": 541, "H": 450}, {"cat": "김치류", "name": "350g 18각", "box": 210, "cap": "400g 캡", "capBox": 420, "hasCap": true, "L": 710, "W": 510, "H": 470}, {"cat": "김치류", "name": "350g 신형", "box": 210, "cap": "400g 캡", "capBox": 420, "hasCap": true, "L": 695, "W": 515, "H": 525}, {"cat": "김치류", "name": "350g-ST", "box": 300, "cap": "", "capBox": 0, "hasCap": false, "L": 570, "W": 475, "H": 300}, {"cat": "김치류", "name": "400g 공통", "box": 210, "cap": "400g 캡", "capBox": 420, "hasCap": true, "L": 744, "W": 530, "H": 500}, {"cat": "김치류", "name": "400g 광구", "box": 200, "cap": "700g 캡", "capBox": 200, "hasCap": true, "L": 602, "W": 597, "H": 537}, {"cat": "김치류", "name": "400g 푸드", "box": 210, "cap": "400g 캡", "capBox": 420, "hasCap": true, "L": 635, "W": 540, "H": 465}, {"cat": "김치류", "name": "500g", "box": 200, "cap": "700g 캡", "capBox": 200, "hasCap": true, "L": 945, "W": 590, "H": 410}, {"cat": "김치류", "name": "500g-ST", "box": 200, "cap": "", "capBox": 0, "hasCap": false, "L": 760, "W": 470, "H": 480}, {"cat": "김치류", "name": "600g", "box": 200, "cap": "700g 캡", "capBox": 200, "hasCap": true, "L": 890, "W": 545, "H": 510}, {"cat": "김치류", "name": "700g", "box": 200, "cap": "700g 캡", "capBox": 200, "hasCap": true, "L": 905, "W": 565, "H": 538}, {"cat": "김치류", "name": "800g", "box": 200, "cap": "700g 캡", "capBox": 200, "hasCap": true, "L": 940, "W": 580, "H": 550}, {"cat": "소용량", "name": "180g 공통", "box": 280, "cap": "400g 소 캡", "capBox": 560, "hasCap": true, "L": 670, "W": 475, "H": 383}, {"cat": "소용량", "name": "180g 팔각", "box": 280, "cap": "400g 소 캡", "capBox": 560, "hasCap": true, "L": 655, "W": 470, "H": 393}, {"cat": "소용량", "name": "250g 공통", "box": 280, "cap": "400g 소 캡", "capBox": 560, "hasCap": true, "L": 650, "W": 470, "H": 450}, {"cat": "소용량", "name": "300g 신형", "box": 280, "cap": "400g 소 캡", "capBox": 560, "hasCap": true, "L": 770, "W": 483, "H": 542}, {"cat": "대용량", "name": "1.16ℓ", "box": 100, "cap": "2ℓ 캡", "capBox": 200, "hasCap": true, "L": 635, "W": 505, "H": 640}, {"cat": "대용량", "name": "1.5L", "box": 100, "cap": "2ℓ 캡", "capBox": 200, "hasCap": true, "L": 640, "W": 635, "H": 555}, {"cat": "대용량", "name": "1.65L", "box": 100, "cap": "2ℓ 캡", "capBox": 200, "hasCap": true, "L": 640, "W": 640, "H": 620}, {"cat": "대용량", "name": "1.8L 핸들 H", "box": 114, "cap": "", "capBox": 0, "hasCap": false, "L": 1165, "W": 620, "H": 550}, {"cat": "대용량", "name": "10L 뉴그린", "box": 12, "cap": "", "capBox": 0, "hasCap": false, "L": 930, "W": 695, "H": 360}, {"cat": "대용량", "name": "10L 사각", "box": 12, "cap": "", "capBox": 0, "hasCap": false, "L": 835, "W": 630, "H": 375}, {"cat": "대용량", "name": "10L 원형", "box": 12, "cap": "", "capBox": 0, "hasCap": false, "L": 885, "W": 665, "H": 375}, {"cat": "대용량", "name": "10L 청매실", "box": 12, "cap": "", "capBox": 0, "hasCap": false, "L": 930, "W": 695, "H": 360}, {"cat": "대용량", "name": "12L 과실주", "box": 12, "cap": "", "capBox": 0, "hasCap": false, "L": 950, "W": 715, "H": 385}, {"cat": "대용량", "name": "15L 과실주", "box": 4, "cap": "", "capBox": 0, "hasCap": false, "L": 545, "W": 545, "H": 420}, {"cat": "대용량", "name": "15L 뉴그린", "box": 4, "cap": "", "capBox": 0, "hasCap": false, "L": 545, "W": 545, "H": 420}, {"cat": "대용량", "name": "15L 청매실", "box": 4, "cap": "", "capBox": 0, "hasCap": false, "L": 545, "W": 545, "H": 420}, {"cat": "대용량", "name": "18L 과실주", "box": 8, "cap": "", "capBox": 0, "hasCap": false, "L": 1120, "W": 545, "H": 440}, {"cat": "대용량", "name": "18L 뉴그린", "box": 8, "cap": "", "capBox": 0, "hasCap": false, "L": 1120, "W": 545, "H": 440}, {"cat": "대용량", "name": "18L 청매실", "box": 8, "cap": "", "capBox": 0, "hasCap": false, "L": 1120, "W": 545, "H": 440}, {"cat": "대용량", "name": "2.5L 사각", "box": 100, "cap": "", "capBox": 0, "hasCap": false, "L": 670, "W": 660, "H": 737}, {"cat": "대용량", "name": "2.5L 원형", "box": 60, "cap": "", "capBox": 0, "hasCap": false, "L": 752, "W": 602, "H": 570}, {"cat": "대용량", "name": "20L 과실주", "box": 8, "cap": "", "capBox": 0, "hasCap": false, "L": 1140, "W": 560, "H": 430}, {"cat": "대용량", "name": "20L 뉴그린", "box": 8, "cap": "", "capBox": 0, "hasCap": false, "L": 1140, "W": 560, "H": 460}, {"cat": "대용량", "name": "20L 청매실", "box": 8, "cap": "", "capBox": 0, "hasCap": false, "L": 1140, "W": 560, "H": 460}, {"cat": "대용량", "name": "22L 과실주", "box": 8, "cap": "", "capBox": 0, "hasCap": false, "L": 1180, "W": 585, "H": 440}, {"cat": "대용량", "name": "22L 뉴그린", "box": 8, "cap": "", "capBox": 0, "hasCap": false, "L": 1180, "W": 585, "H": 470}, {"cat": "대용량", "name": "22L 청매실", "box": 8, "cap": "", "capBox": 0, "hasCap": false, "L": 1180, "W": 585, "H": 470}, {"cat": "대용량", "name": "25L 뉴그린", "box": 6, "cap": "", "capBox": 0, "hasCap": false, "L": 905, "W": 597, "H": 482}, {"cat": "대용량", "name": "25L 청매실", "box": 6, "cap": "", "capBox": 0, "hasCap": false, "L": 905, "W": 597, "H": 482}, {"cat": "대용량", "name": "2L", "box": 100, "cap": "2ℓ 캡", "capBox": 200, "hasCap": true, "L": 676, "W": 676, "H": 735}, {"cat": "대용량", "name": "3.4L", "box": 60, "cap": "", "capBox": 0, "hasCap": false, "L": 832, "W": 667, "H": 615}, {"cat": "대용량", "name": "30L 뉴그린", "box": 6, "cap": "", "capBox": 0, "hasCap": false, "L": 935, "W": 625, "H": 520}, {"cat": "대용량", "name": "30L 청매실", "box": 6, "cap": "", "capBox": 0, "hasCap": false, "L": 935, "W": 625, "H": 520}, {"cat": "대용량", "name": "3L", "box": 60, "cap": "2ℓ 캡", "capBox": 200, "hasCap": true, "L": 785, "W": 625, "H": 575}, {"cat": "대용량", "name": "4.3L 사각", "box": 60, "cap": "", "capBox": 0, "hasCap": false, "L": 735, "W": 580, "H": 755}, {"cat": "대용량", "name": "4.4L", "box": 60, "cap": "2ℓ 캡", "capBox": 200, "hasCap": true, "L": 897, "W": 717, "H": 665}, {"cat": "대용량", "name": "5L", "box": 60, "cap": "2ℓ 캡", "capBox": 200, "hasCap": true, "L": 900, "W": 710, "H": 750}, {"cat": "대용량", "name": "6L", "box": 60, "cap": "2ℓ 캡", "capBox": 200, "hasCap": true, "L": 820, "W": 655, "H": 782}, {"cat": "대용량", "name": "8L 뉴그린", "box": 12, "cap": "", "capBox": 0, "hasCap": false, "L": 890, "W": 670, "H": 335}, {"cat": "대용량", "name": "8L 사각", "box": 12, "cap": "", "capBox": 0, "hasCap": false, "L": 815, "W": 595, "H": 335}, {"cat": "대용량", "name": "8L 청매실", "box": 12, "cap": "", "capBox": 0, "hasCap": false, "L": 890, "W": 670, "H": 335}, {"cat": "대용량", "name": "호프 1.0", "box": 132, "cap": "", "capBox": 0, "hasCap": false, "L": 820, "W": 490, "H": 565}, {"cat": "대용량", "name": "호프 1.5", "box": 105, "cap": "", "capBox": 0, "hasCap": false, "L": 780, "W": 585, "H": 625}, {"cat": "단지류", "name": "100g 단지", "box": 560, "cap": "100g 단지 캡", "capBox": 1440, "hasCap": true, "L": 625, "W": 495, "H": 360}, {"cat": "단지류", "name": "1KG 단지", "box": 160, "cap": "1KG 단지 캡", "capBox": 320, "hasCap": true, "L": 925, "W": 575, "H": 515}, {"cat": "단지류", "name": "1kg 옹기", "box": 200, "cap": "", "capBox": 0, "hasCap": false, "L": 1025, "W": 655, "H": 460}, {"cat": "단지류", "name": "2KG 단지", "box": 100, "cap": "2KG 단지 캡", "capBox": 200, "hasCap": true, "L": 800, "W": 800, "H": 603}, {"cat": "단지류", "name": "3KG 단지", "box": 60, "cap": "2KG 단지 캡", "capBox": 200, "hasCap": true, "L": 870, "W": 695, "H": 545}, {"cat": "단지류", "name": "4.5KG 단지", "box": 60, "cap": "2KG 단지 캡", "capBox": 200, "hasCap": true, "L": 910, "W": 725, "H": 665}, {"cat": "단지류", "name": "500g 단지", "box": 240, "cap": "500g 단지 캡", "capBox": 480, "hasCap": true, "L": 765, "W": 590, "H": 517}, {"cat": "간장/물엿류", "name": "1.5L 핸들", "box": 126, "cap": "간장 캡", "capBox": 2000, "hasCap": true, "L": 720, "W": 545, "H": 570}, {"cat": "간장/물엿류", "name": "1.7L 간장", "box": 120, "cap": "물엿 캡", "capBox": 1500, "hasCap": true, "L": 1105, "W": 500, "H": 625}, {"cat": "간장/물엿류", "name": "1.8L 간장", "box": 120, "cap": "물엿 캡", "capBox": 1500, "hasCap": true, "L": 1070, "W": 510, "H": 625}, {"cat": "간장/물엿류", "name": "1.8L 핸들N/H", "box": 114, "cap": "간장 캡", "capBox": 2000, "hasCap": true, "L": 1080, "W": 570, "H": 610}, {"cat": "간장/물엿류", "name": "1.8L 핸들S", "box": 108, "cap": "간장 캡", "capBox": 2000, "hasCap": true, "L": 1010, "W": 550, "H": 625}, {"cat": "간장/물엿류", "name": "100ml", "box": 672, "cap": "간장 캡", "capBox": 2000, "hasCap": true, "L": 0, "W": 0, "H": 0}, {"cat": "간장/물엿류", "name": "150ml", "box": 600, "cap": "간장 캡", "capBox": 2000, "hasCap": true, "L": 0, "W": 0, "H": 0}, {"cat": "간장/물엿류", "name": "1L 간장", "box": 244, "cap": "간장 캡", "capBox": 2000, "hasCap": true, "L": 1147, "W": 588, "H": 519}, {"cat": "간장/물엿류", "name": "1L 핸들", "box": 152, "cap": "간장 캡", "capBox": 2000, "hasCap": true, "L": 870, "W": 520, "H": 600}, {"cat": "간장/물엿류", "name": "320ml", "box": 360, "cap": "간장 캡", "capBox": 2000, "hasCap": true, "L": 0, "W": 0, "H": 0}, {"cat": "간장/물엿류", "name": "360ml", "box": 420, "cap": "간장 캡", "capBox": 2000, "hasCap": true, "L": 0, "W": 0, "H": 0}, {"cat": "간장/물엿류", "name": "500ml 원형", "box": 375, "cap": "간장 캡", "capBox": 2000, "hasCap": true, "L": 0, "W": 0, "H": 0}, {"cat": "간장/물엿류", "name": "500ml 팔각", "box": 364, "cap": "간장 캡", "capBox": 2000, "hasCap": true, "L": 0, "W": 0, "H": 0}, {"cat": "간장/물엿류", "name": "900ml 원형", "box": 252, "cap": "간장 캡", "capBox": 2000, "hasCap": true, "L": 1120, "W": 535, "H": 520}, {"cat": "간장/물엿류", "name": "900ml 팔각", "box": 200, "cap": "간장 캡", "capBox": 2000, "hasCap": true, "L": 1125, "W": 575, "H": 500}, {"cat": "생수류", "name": "1.5L 사각 (생수)", "box": 154, "cap": "생수 캡", "capBox": 3000, "hasCap": true, "L": 680, "W": 515, "H": 620}, {"cat": "생수류", "name": "1.5L 원형 (생수)", "box": 140, "cap": "생수 캡", "capBox": 3000, "hasCap": true, "L": 700, "W": 575, "H": 605}, {"cat": "생수류", "name": "500ml 사각 (생수)", "box": 324, "cap": "생수 캡", "capBox": 3000, "hasCap": true, "L": 725, "W": 540, "H": 610}, {"cat": "생수류", "name": "500ml 원형 (생수)", "box": 270, "cap": "생수 캡", "capBox": 3000, "hasCap": true, "L": 725, "W": 565, "H": 590}, {"cat": "생수류", "name": "900ml (생수)", "box": 160, "cap": "생수 캡", "capBox": 3000, "hasCap": true, "L": 725, "W": 570, "H": 500}, {"cat": "생수류", "name": "소주 1.8L", "box": 120, "cap": "생수 캡", "capBox": 3000, "hasCap": true, "L": 1100, "W": 530, "H": 670}, {"cat": "와인류", "name": "와인 250ml 사각", "box": 200, "cap": "와인 캡", "capBox": 3000, "hasCap": true, "L": 480, "W": 430, "H": 480}, {"cat": "와인류", "name": "와인 250ml 원형", "box": 180, "cap": "와인 캡", "capBox": 3000, "hasCap": true, "L": 650, "W": 535, "H": 290}, {"cat": "와인류", "name": "와인 250ml 원형 (물엿)", "box": 180, "cap": "와인물엿 캡", "capBox": 1500, "hasCap": true, "L": 650, "W": 535, "H": 290}, {"cat": "와인류", "name": "와인 500ml 사각", "box": 200, "cap": "와인 캡", "capBox": 3000, "hasCap": true, "L": 647, "W": 540, "H": 580}, {"cat": "와인류", "name": "와인 500ml 원형", "box": 200, "cap": "와인 캡", "capBox": 3000, "hasCap": true, "L": 647, "W": 540, "H": 580}, {"cat": "와인류", "name": "와인 500ml 원형 (물엿)", "box": 200, "cap": "와인물엿 캡", "capBox": 1500, "hasCap": true, "L": 647, "W": 540, "H": 580}, {"cat": "와인류", "name": "와인 750ml 사각", "box": 140, "cap": "와인 캡", "capBox": 3000, "hasCap": true, "L": 710, "W": 620, "H": 495}, {"cat": "와인류", "name": "와인 750ml 원형", "box": 140, "cap": "와인 캡", "capBox": 3000, "hasCap": true, "L": 710, "W": 620, "H": 495}, {"cat": "와인류", "name": "와인 750ml 원형 (물엿)", "box": 140, "cap": "와인물엿 캡", "capBox": 1500, "hasCap": true, "L": 710, "W": 620, "H": 495}, {"cat": "기타", "name": "1.2KG 꿀병", "box": 15, "cap": "", "capBox": 0, "hasCap": false, "L": 505, "W": 305, "H": 175}, {"cat": "기타", "name": "1.65L 원형", "box": 100, "cap": "", "capBox": 0, "hasCap": false, "L": 665, "W": 665, "H": 642}, {"cat": "기타", "name": "1.65L 원형_대경 전용", "box": 100, "cap": "", "capBox": 0, "hasCap": false, "L": 1070, "W": 480, "H": 590}, {"cat": "기타", "name": "1.6L 핸들", "box": 126, "cap": "", "capBox": 0, "hasCap": false, "L": 1100, "W": 560, "H": 590}, {"cat": "기타", "name": "2.4kg 꿀병", "box": 12, "cap": "", "capBox": 0, "hasCap": false, "L": 520, "W": 395, "H": 210}, {"cat": "기타", "name": "750g-ST", "box": 250, "cap": "", "capBox": 0, "hasCap": false, "L": 570, "W": 570, "H": 430}, {"cat": "기타", "name": "900(S)", "box": 216, "cap": "", "capBox": 0, "hasCap": false, "L": 1111, "W": 573, "H": 496}, {"cat": "캡박스", "name": "100g 캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 465, "W": 335, "H": 485}, {"cat": "캡박스", "name": "200g 캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 685, "W": 315, "H": 435}, {"cat": "캡박스", "name": "300g 캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 685, "W": 315, "H": 435}, {"cat": "캡박스", "name": "400g 캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 685, "W": 315, "H": 435}, {"cat": "캡박스", "name": "700g 캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 450, "W": 335, "H": 455}, {"cat": "캡박스", "name": "400g 소 캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 525, "W": 420, "H": 385}, {"cat": "캡박스", "name": "2ℓ  캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 650, "W": 525, "H": 205}, {"cat": "캡박스", "name": "100g 단지 캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 465, "W": 335, "H": 500}, {"cat": "캡박스", "name": "500g 단지 캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 520, "W": 425, "H": 390}, {"cat": "캡박스", "name": "1KG 단지 캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 515, "W": 420, "H": 395}, {"cat": "캡박스", "name": "2KG 단지 캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 654, "W": 490, "H": 345}, {"cat": "캡박스", "name": "간장 캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 550, "W": 375, "H": 285}, {"cat": "캡박스", "name": "물엿 캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 500, "W": 365, "H": 325}, {"cat": "캡박스", "name": "생수 캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 545, "W": 365, "H": 360}, {"cat": "캡박스", "name": "와인 캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 545, "W": 365, "H": 360}, {"cat": "캡박스", "name": "와인물엿 캡", "box": 0, "cap": "", "capBox": 0, "hasCap": false, "L": 485, "W": 320, "H": 360}];
+
+// ══════════════════════════════════════════════
+//  USERS
+// ══════════════════════════════════════════════
+const USERS_DEFAULT = [
+  {name:'admin',   tel:'',                 dept:'관리자',     role:'admin',   pw:'6181'},
+  {name:'성혜리',  tel:'010-6666-1936',    dept:'영업팀',     role:'sales',   pw:'0000'},
+  {name:'김이수',  tel:'010-3189-0613',    dept:'영업팀',     role:'sales',   pw:'0000'},
+  {name:'임성수',  tel:'010-2226-3834',    dept:'영업팀',     role:'sales',   pw:'0000'},
+  {name:'이미혜',  tel:'010-9409-6808',    dept:'생산지원팀', role:'support', pw:'1111'},
+  {name:'박창규',  tel:'010-5333-9750',    dept:'생산지원팀', role:'support', pw:'1111'},
+  {name:'박민욱',  tel:'010-8369-0952',    dept:'생산지원팀', role:'support', pw:'1111'},
+];
+const SUPPORT_NUMS = '010-9409-6808,010-5333-9750,010-8369-0952';
+const NOTIFY_NUM = '010-5516-6181'; // test: single number
+
+function getUsers(){
+  try{return JSON.parse(localStorage.getItem('users'))||USERS_DEFAULT;}catch{return USERS_DEFAULT;}
+}
+function saveUsers(u){localStorage.setItem('users',JSON.stringify(u));}
+
+// ══════════════════════════════════════════════
+//  VEHICLES
+// ══════════════════════════════════════════════
+function getVehs(){
+  try{return JSON.parse(localStorage.getItem('vehs'))||[];}catch{return[];}
+}
+function saveVehs(v){localStorage.setItem('vehs',JSON.stringify(v));}
+
+// ══════════════════════════════════════════════
+//  HISTORY
+// ══════════════════════════════════════════════
+function getHist(){
+  try{return JSON.parse(localStorage.getItem('hist'))||[];}catch{return[];}
+}
+function saveHist(h){localStorage.setItem('hist',JSON.stringify(h));}
+
+// ══════════════════════════════════════════════
+//  PRODUCT DB (in-memory, overrideable)
+// ══════════════════════════════════════════════
+let P = [...P_DEFAULT];
+
+function loadDB(){
+  const saved = localStorage.getItem('productDB');
+  if(saved){
+    try{
+      const parsed = JSON.parse(saved);
+      if(Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }catch{}
+  }
+  return [...P_DEFAULT];
+}
+
+// ══════════════════════════════════════════════
+//  LOGIN
+// ══════════════════════════════════════════════
+let kpTgt='', kpV='';
+
+function getCU(){
+  try{return JSON.parse(sessionStorage.getItem('cu'));}catch{return null;}
+}
+function setCU(u){sessionStorage.setItem('cu',JSON.stringify(u));}
+
+function initLoginSelect(){
+  const sel = document.getElementById('login-name');
+  sel.innerHTML = '<option value="">이름을 선택하세요</option>';
+  getUsers().forEach(u=>{
+    const o = document.createElement('option');
+    o.value = u.name;
+    o.textContent = u.name + (u.dept?' ('+u.dept+')':'');
+    sel.appendChild(o);
+  });
+}
+
+function doLogin(){
+  const name = document.getElementById('login-name').value;
+  const pw = kpTgt==='login' ? kpV : document.getElementById('login-pw')?.value||kpV;
+  const users = getUsers();
+  const u = users.find(x=>x.name===name&&x.pw===pw);
+  if(!u){ document.getElementById('login-err').textContent='이름 또는 비밀번호가 올바르지 않습니다.'; return; }
+  setCU(u);
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  document.getElementById('hdr-user').textContent=u.name+' ('+u.dept+')';
+  applyRole(u);
+  kpV=''; kpTgt='';
+}
+
+function doLogout(){
+  sessionStorage.removeItem('cu');
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  kpV=''; kpTgt='';
+  document.getElementById('pw-dots').textContent='_ _ _ _';
+  document.getElementById('login-err').textContent='';
+  initLoginSelect();
+}
+
+function applyRole(u){
+  const isSales = u.role==='sales';
+  const isAdmin = u.role==='admin';
+  // Non-sales tabs hidden for sales
+  ['tab-veh','tab-hist','tab-db'].forEach(id=>{
+    document.getElementById(id).style.display = isSales?'none':'';
+  });
+  document.getElementById('tab-users').style.display = isAdmin?'':'none';
+  document.getElementById('done-card').style.display = isSales?'':'none';
+  document.getElementById('db-count').textContent = P.length;
+  renderVehList();
+  renderHist();
+  renderUserList();
+}
+
+// ══════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════
+function showTab(t){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('sec-'+t).classList.add('active');
+  document.getElementById('tab-'+t).classList.add('active');
+  if(t==='veh')renderVehList();
+  if(t==='hist')renderHist();
+  if(t==='users')renderUserList();
+}
+
+// ══════════════════════════════════════════════
+//  KEYPAD
+// ══════════════════════════════════════════════
+function openKp(tgt){
+  kpTgt=tgt; kpV=''; updateKpDisp();
+  document.getElementById('kp-overlay').classList.add('show');
+}
+function closeKp(){document.getElementById('kp-overlay').classList.remove('show');}
+function kpBg(e){if(e.target===document.getElementById('kp-overlay'))closeKp();}
+function kpPress(d){if(kpV.length<4){kpV+=d;updateKpDisp();}}
+function kpDel(){kpV=kpV.slice(0,-1);updateKpDisp();}
+function updateKpDisp(){
+  const d=document.getElementById('kp-display');
+  if(kpTgt==='login'){
+    d.textContent=kpV.length?'●'.repeat(kpV.length)+'    '.slice(kpV.length):'_ _ _ _';
+  }else{
+    d.textContent=(kpV+'    ').slice(0,4).split('').map((c,i)=>kpV[i]||'_').join(' ');
+  }
+}
+function kpOk(){
+  if(kpTgt==='ship'){document.getElementById('s-veh').value=kpV;onSVeh(kpV);}
+  else if(kpTgt==='reg'){document.getElementById('v-num').value=kpV;onVN(kpV);}
+  else if(kpTgt==='vsearch'){document.getElementById('v-search').value=kpV;onVSearch(kpV);}
+  else if(kpTgt==='login'){updatePwDots();}
+  closeKp();
+}
+function updatePwDots(){
+  document.getElementById('pw-dots').textContent=kpV.length?'●'.repeat(kpV.length):'_ _ _ _';
+}
+
+// ══════════════════════════════════════════════
+//  VEHICLE LOGIC
+// ══════════════════════════════════════════════
+let curVeh=null;
+
+function onSVeh(v){
+  const match=getVehs().find(x=>x.num===v);
+  const mEl=document.getElementById('sveh-match');
+  const nmEl=document.getElementById('sveh-nomatch');
+  if(v.length<4){mEl.style.display='none';nmEl.style.display='none';curVeh=null;return;}
+  if(match){
+    curVeh=match;
+    mEl.style.display='block';
+    mEl.innerHTML=`<div class="veh-match" style="margin-top:8px">
+      <div class="vnum">🚚 ${match.num}</div>
+      <div class="vinfo">📞 ${match.tel||'전화번호 없음'} &nbsp;|&nbsp; 적재함: ${match.L}×${match.W}×${match.H} mm</div>
+    </div>`;
+    nmEl.style.display='none';
+    calcResult();
+  }else{
+    curVeh=null; mEl.style.display='none'; nmEl.style.display='block';
+  }
+}
+
+function onVSearch(v){
+  const res=document.getElementById('v-results');
+  const vehs=getVehs();
+  if(!v){renderVSearchAll(res,vehs);return;}
+  const found=vehs.filter(x=>x.num.includes(v));
+  if(!found.length){res.innerHTML='<div style="font-size:13px;color:var(--t3);padding:8px 0">등록된 차량이 없습니다</div>';return;}
+  res.innerHTML=found.map(renderVehCardHtml).join('');
+}
+function renderVSearchAll(res,vehs){
+  if(!vehs.length){res.innerHTML='<div style="font-size:13px;color:var(--t3);padding:8px 0">등록된 차량이 없습니다</div>';return;}
+  res.innerHTML=vehs.map(renderVehCardHtml).join('');
+}
+function renderVehCardHtml(v){
+  return `<div class="veh-card">
+    <div class="veh-card-num">🚚 ${v.num}</div>
+    <div class="veh-card-info">📞 ${v.tel||'-'} &nbsp;|&nbsp; ${v.L}×${v.W}×${v.H} mm</div>
+    <div class="veh-card-actions">
+      <button class="btn btn-secondary btn-sm" onclick="editVeh('${v.num}')"><i class="ti ti-pencil"></i> 수정</button>
+      <button class="btn btn-danger btn-sm" onclick="delVeh('${v.num}')"><i class="ti ti-trash"></i> 삭제</button>
+    </div>
+  </div>`;
+}
+function renderVehList(){
+  const el=document.getElementById('veh-list');
+  const vehs=getVehs();
+  if(!vehs.length){el.innerHTML='<div class="empty"><i class="ti ti-car-off"></i>등록된 차량이 없습니다</div>';return;}
+  el.innerHTML=vehs.map(renderVehCardHtml).join('');
+}
+
+function onVN(v){
+  if(v.length<4)return;
+  const found=getVehs().find(x=>x.num===v);
+  if(found){
+    document.getElementById('v-tel').value=found.tel||'';
+    document.getElementById('v-L').value=found.L||'';
+    document.getElementById('v-W').value=found.W||'';
+    document.getElementById('v-H').value=found.H||'';
+  }
+}
+
+function saveVeh(){
+  const num=document.getElementById('v-num').value.trim();
+  const tel=document.getElementById('v-tel').value.trim();
+  const L=parseInt(document.getElementById('v-L').value)||0;
+  const W=parseInt(document.getElementById('v-W').value)||0;
+  const H=parseInt(document.getElementById('v-H').value)||0;
+  const msg=document.getElementById('v-msg');
+  if(num.length!==4){msg.style.color='var(--red)';msg.textContent='차량번호 4자리를 입력하세요';return;}
+  const vehs=getVehs();
+  const idx=vehs.findIndex(x=>x.num===num);
+  const obj={num,tel,L,W,H};
+  if(idx>=0)vehs[idx]=obj; else vehs.push(obj);
+  saveVehs(vehs);
+  msg.style.color='var(--green)'; msg.textContent='✅ 저장되었습니다';
+  setTimeout(()=>msg.textContent='',2000);
+  renderVehList();
+  clearVForm();
+}
+
+function editVeh(num){
+  const v=getVehs().find(x=>x.num===num);
+  if(!v)return;
+  showTab('veh');
+  document.getElementById('v-num').value=v.num;
+  document.getElementById('v-tel').value=v.tel||'';
+  document.getElementById('v-L').value=v.L||'';
+  document.getElementById('v-W').value=v.W||'';
+  document.getElementById('v-H').value=v.H||'';
+}
+
+function delVeh(num){
+  if(!confirm(num+' 차량을 삭제하시겠습니까?'))return;
+  const vehs=getVehs().filter(x=>x.num!==num);
+  saveVehs(vehs);
+  renderVehList();
+  onVSearch(document.getElementById('v-search').value);
+}
+
+function clearVForm(){
+  ['v-num','v-tel','v-L','v-W','v-H'].forEach(id=>{document.getElementById(id).value=''});
+  document.getElementById('v-msg').textContent='';
+}
+
+function fmtTel(inp){
+  let v=inp.value.replace(/\D/g,'');
+  if(v.length<=3)inp.value=v;
+  else if(v.length<=7)inp.value=v.slice(0,3)+'-'+v.slice(3);
+  else inp.value=v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7,11);
+}
+
+// ══════════════════════════════════════════════
+//  PRODUCT SEARCH
+// ══════════════════════════════════════════════
+// 초성 매핑
+const CHOSUNG=['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+function getChosung(s){
+  return [...s].map(c=>{
+    const code=c.charCodeAt(0)-44032;
+    if(code<0||code>11171)return c;
+    return CHOSUNG[Math.floor(code/588)];
+  }).join('');
+}
+function matchQ(name,q){
+  if(!q)return true;
+  const nl=name.toLowerCase(), ql=q.toLowerCase();
+  if(nl.includes(ql))return true;
+  const cs=getChosung(name);
+  if(cs.includes(q))return true;
+  return false;
+}
+
+let items=[];  // {p, qty}
+
+function onPSearch(q){
+  const res=document.getElementById('p-results');
+  if(!q){res.style.display='none';return;}
+  const found=P.filter(p=>matchQ(p.name,q)||matchQ(p.cat,q)).slice(0,20);
+  if(!found.length){res.style.display='none';return;}
+  res.style.display='block';
+  res.innerHTML=found.map(p=>`
+    <div class="sr-item" onclick="addItem(${JSON.stringify(p).replace(/'/g,"\'")})">
+      <span class="scat">${p.cat}</span>
+      <span class="sname">${p.name}</span>
+      <span style="font-size:11px;color:var(--t3);margin-left:auto">${p.box}개/박스</span>
+    </div>
+  `).join('');
+}
+
+function addItem(p){
+  document.getElementById('p-search').value='';
+  document.getElementById('p-results').style.display='none';
+  const exist=items.find(x=>x.p.name===p.name);
+  if(exist){exist.qty++;}else{items.push({p,qty:1});}
+  renderItems();
+  calcResult();
+}
+
+function changeQty(name,delta){
+  const item=items.find(x=>x.p.name===name);
+  if(!item)return;
+  item.qty=Math.max(1,item.qty+delta);
+  renderItems();
+  calcResult();
+}
+
+function delItem(name){
+  items=items.filter(x=>x.p.name!==name);
+  renderItems();
+  calcResult();
+}
+
+function renderItems(){
+  const card=document.getElementById('items-card');
+  const list=document.getElementById('items-list');
+  if(!items.length){card.style.display='none';return;}
+  card.style.display='block';
+  list.innerHTML=items.map(it=>`
+    <div class="item-row">
+      <div style="flex:1">
+        <div class="item-name">${it.p.name}</div>
+        <div style="font-size:11px;color:var(--t3)">${it.p.cat} · ${it.p.box}개/박스</div>
+      </div>
+      <div class="item-qty">
+        <button onclick="changeQty('${it.p.name}',-1)">−</button>
+        <div class="qval">${it.qty}</div>
+        <button onclick="changeQty('${it.p.name}',+1)">+</button>
+      </div>
+      <button class="item-del" onclick="delItem('${it.p.name}')"><i class="ti ti-x"></i></button>
+    </div>
+  `).join('');
+}
+
+// ══════════════════════════════════════════════
+//  CALCULATION
+// ══════════════════════════════════════════════
+function calcResult(){
+  const rs=document.getElementById('result-section');
+  if(!items.length){rs.style.display='none';return;}
+  rs.style.display='block';
+
+  // ── 제품 박스 부피 (BUG FIX: 각 제품의 실제 박스 크기 사용) ──
+  let prodVol=0;
+  items.forEach(it=>{
+    const p=it.p;
+    if(p.L>0&&p.W>0&&p.H>0){
+      prodVol += (p.L/1000)*(p.W/1000)*(p.H/1000)*it.qty;
+    }
+  });
+
+  // ── 캡 박스 계산 ──
+  const capGroups={};
+  items.forEach(it=>{
+    const p=it.p;
+    if(p.hasCap&&p.cap&&p.capBox>0){
+      const needPcs=it.qty*p.box;
+      if(!capGroups[p.cap])capGroups[p.cap]={need:0,capBox:p.capBox,capL:0,capW:0,capH:0};
+      capGroups[p.cap].need+=needPcs;
+      // Find cap box dimensions from P array
+      const capP=P.find(x=>x.cat==='캡박스'&&x.name.replace(/\s/g,'').includes(p.cap.replace(/\s/g,'')));
+      if(capP&&!capGroups[p.cap].capL){
+        capGroups[p.cap].capL=capP.L;
+        capGroups[p.cap].capW=capP.W;
+        capGroups[p.cap].capH=capP.H;
+      }
+    }
+  });
+
+  let capVol=0;
+  const capRows=Object.entries(capGroups).map(([name,g])=>{
+    const boxes=Math.ceil(g.need/g.capBox);
+    if(g.capL>0&&g.capW>0&&g.capH>0){
+      capVol+=(g.capL/1000)*(g.capW/1000)*(g.capH/1000)*boxes;
+    }
+    return {name,need:g.need,boxes,capBox:g.capBox};
+  });
+
+  const totalVol=prodVol+capVol;
+
+  // Pallet calc (1200×1000×1200mm)
+  const PAL_V=1.2*1.0*1.2;
+  const palBoxes=Math.ceil(totalVol/PAL_V);
+
+  // Vehicle cargo
+  let rbEl=document.getElementById('result-box');
+  let capCard=document.getElementById('cap-card');
+  let capList=document.getElementById('cap-list');
+  let doneCard=document.getElementById('done-card');
+  const cu=getCU();
+  const isSales=cu&&cu.role==='sales';
+
+  if(curVeh&&curVeh.L>0&&curVeh.W>0&&curVeh.H>0){
+    const vVol=(curVeh.L/1000)*(curVeh.W/1000)*(curVeh.H/1000);
+    const ratio=totalVol/vVol;
+    const remain=vVol-totalVol;
+    let cls=ratio<=0.85?'ok':ratio<=1.0?'warn':'over';
+    let icon=ratio<=0.85?'✅':ratio<=1.0?'⚠️':'❌';
+    let msg=ratio<=0.85?'여유 있음':ratio<=1.0?'거의 만석':'초과!';
+    rbEl.className='result-box '+cls;
+    rbEl.innerHTML=`
+      <div class="rt">${icon} ${msg} (${(ratio*100).toFixed(1)}%)</div>
+      <div class="rval">
+        차량 적재함: ${vVol.toFixed(3)} m³ &nbsp;|&nbsp; 필요 부피: ${totalVol.toFixed(3)} m³<br>
+        제품 박스: ${prodVol.toFixed(3)} m³ &nbsp;|&nbsp; 캡 박스: ${capVol.toFixed(3)} m³<br>
+        ${remain>=0?'여유: '+Math.abs(remain).toFixed(3)+' m³':'초과: '+Math.abs(remain).toFixed(3)+' m³'}
+      </div>`;
+  }else{
+    rbEl.className='result-box warn';
+    rbEl.innerHTML=`
+      <div class="rt">⚠️ 차량 미선택</div>
+      <div class="rval">
+        제품 박스: ${prodVol.toFixed(3)} m³ &nbsp;|&nbsp; 캡 박스: ${capVol.toFixed(3)} m³<br>
+        총 필요 부피: ${totalVol.toFixed(3)} m³ &nbsp;(약 ${palBoxes} 파렛트)
+      </div>`;
+  }
+
+  if(capRows.length){
+    capCard.style.display='block';
+    capList.innerHTML=capRows.map(r=>`
+      <div class="cap-row">
+        <span><span class="cap-badge">${r.name}</span></span>
+        <span style="font-size:13px;color:var(--t2)">${r.need.toLocaleString()}개 → <strong>${r.boxes}박스</strong></span>
+      </div>`).join('');
+  }else{capCard.style.display='none';}
+
+  doneCard.style.display=isSales?'block':'none';
+}
+
+// ══════════════════════════════════════════════
+//  DONE / NOTIFY
+// ══════════════════════════════════════════════
+function doDone(){
+  if(!items.length){alert('출고할 제품을 먼저 추가해 주세요.');return;}
+  const cu=getCU();
+  const vNum=document.getElementById('s-veh').value||'미지정';
+  const now=new Date().toLocaleString('ko-KR',{hour12:false});
+  const itemStr=items.map(it=>it.p.name+' '+it.qty+'박스').join(', ');
+  const extra=document.getElementById('msg-extra').value.trim();
+
+  const body='[출고등록완료]\n'+(cu?cu.name:'')+'님이 출고를 등록했습니다.\n'
+    +(vNum!=='미지정'?'차량: '+vNum+'\n':'')
+    +'제품: '+itemStr+'\n등록시각: '+now
+    +(extra?'\n\n📌 전달사항: '+extra:'')
+    +'\n확인 바랍니다.';
+
+  // Save to history
+  const hist=getHist();
+  hist.unshift({id:Date.now(),user:cu?cu.name:'',veh:vNum,items:itemStr,extra,time:now,done:false});
+  saveHist(hist);
+
+  const smsUrl='sms:'+NOTIFY_NUM+'?body='+encodeURIComponent(body);
+  window.location.href=smsUrl;
+}
+
+// ══════════════════════════════════════════════
+//  HISTORY  (BUG FIX: delete works correctly)
+// ══════════════════════════════════════════════
+function renderHist(){
+  const el=document.getElementById('hist-list');
+  const hist=getHist();
+  if(!hist.length){el.innerHTML='<div class="empty"><i class="ti ti-history-off"></i>내역이 없습니다</div>';return;}
+  const cu=getCU();
+  const canDelete=cu&&(cu.role==='support'||cu.role==='admin');
+  el.innerHTML=hist.map(h=>`
+    <div class="hist-item" id="hist-${h.id}">
+      <div class="hist-header">
+        <div class="hist-name">${h.user||'?'} · ${h.veh}</div>
+        <span class="badge ${h.done?'badge-done':'badge-new'}">${h.done?'✅ 확인완료':'🆕 신규'}</span>
+      </div>
+      <div class="hist-detail">${h.items}${h.extra?'<br>📌 '+h.extra:''}</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:3px">${h.time}</div>
+      <div class="hist-actions">
+        ${!h.done?`<button class="btn btn-secondary btn-sm" onclick="confirmDone(${h.id})"><i class="ti ti-check"></i> 확인완료</button>`:'<button class="btn btn-secondary btn-sm" disabled style="opacity:.4"><i class="ti ti-check"></i> 확인완료</button>'}
+        ${canDelete?`<button class="btn btn-secondary btn-sm" onclick="printHist(${h.id})"><i class="ti ti-printer"></i> 인쇄</button><button class="btn btn-danger btn-sm" onclick="deleteHist(${h.id})"><i class="ti ti-trash"></i> 삭제</button>`:'<button class="btn btn-secondary btn-sm" onclick="printHist('+h.id+')"><i class="ti ti-printer"></i> 인쇄</button>'}
+      </div>
+    </div>
+  `).join('');
+}
+
+function confirmDone(id){
+  if(!confirm('확인 완료 처리하겠습니까?'))return;
+  const hist=getHist();
+  const h=hist.find(x=>x.id===id);
+  if(h)h.done=true;
+  saveHist(hist);
+  renderHist();
+}
+
+// BUG FIX: deleteHist was not working — now correctly filters by id and re-renders
+function deleteHist(id){
+  if(!confirm('이 내역을 삭제하시겠습니까?'))return;
+  const hist=getHist().filter(x=>x.id!==id);
+  saveHist(hist);
+  renderHist();
+}
+
+function printHist(id){
+  const h=getHist().find(x=>x.id===id);
+  if(!h)return;
+  const w=window.open('','_blank','width=400,height=300');
+  w.document.write('<pre>'+[h.user+' · '+h.veh,'제품: '+h.items,h.extra?'전달: '+h.extra:'','시각: '+h.time].filter(Boolean).join('\n')+'</pre>');
+  w.print();
+}
+
+// ══════════════════════════════════════════════
+//  DB UPLOAD (BUG FIX: use XLSX.js for parsing)
+// ══════════════════════════════════════════════
+function onDBFile(input){
+  const file=input.files[0];
+  if(!file)return;
+  document.getElementById('db-file-name').textContent=file.name;
+  const msg=document.getElementById('db-msg');
+  msg.style.color='var(--t2)';
+  msg.textContent='읽는 중...';
+
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=new Uint8Array(e.target.result);
+      const wb=XLSX.read(data,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      const products=[];
+      let headerFound=false;
+      for(const row of rows){
+        const cat=String(row[0]||'').trim();
+        const name=String(row[1]||'').trim();
+        if(cat==='카테고리'){headerFound=true;continue;}
+        if(!headerFound||!name||cat.includes('▶')||cat.includes('출고제품')||cat.includes('※'))continue;
+        try{
+          const box=parseInt(row[2])||0;
+          const cap=String(row[3]||'').trim();
+          const capBox=parseInt(row[4])||0;
+          const hasCap=String(row[5]||'').trim().toUpperCase()==='Y';
+          const L=parseInt(row[6])||0;
+          const W=parseInt(row[7])||0;
+          const H=parseInt(row[8])||0;
+          if(name)products.push({cat,name,box,cap,capBox,hasCap,L,W,H});
+        }catch{}
+      }
+      if(products.length===0){
+        msg.style.color='var(--red)';
+        msg.textContent='❌ 제품을 찾을 수 없습니다. 파일 형식을 확인해 주세요.';
+        return;
+      }
+      localStorage.setItem('productDB',JSON.stringify(products));
+      P=[...products];
+      msg.style.color='var(--green)';
+      msg.textContent='✅ '+products.length+'개 제품으로 업데이트 완료!';
+      document.getElementById('db-count').textContent=P.length;
+    }catch(err){
+      msg.style.color='var(--red)';
+      msg.textContent='❌ 파일 파싱 오류: '+err.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ══════════════════════════════════════════════
+//  USER ADMIN
+// ══════════════════════════════════════════════
+function renderUserList(){
+  const el=document.getElementById('user-list');
+  if(!el)return;
+  const users=getUsers();
+  const roleLabel={sales:'영업팀',support:'지원팀',admin:'관리자'};
+  const roleCls={sales:'role-sales',support:'role-support',admin:'role-admin'};
+  el.innerHTML=users.map(u=>`
+    <div class="user-row">
+      <div>
+        <div class="user-name">${u.name}</div>
+        <div class="user-dept">${u.dept||''} ${u.tel?'· '+u.tel:''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="role-badge ${roleCls[u.role]||''}">${roleLabel[u.role]||u.role}</span>
+        <button class="btn btn-danger btn-sm" onclick="delUser('${u.name}')"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>`).join('');
+}
+
+function addUser(){
+  const name=document.getElementById('u-name').value.trim();
+  const tel=document.getElementById('u-tel').value.trim();
+  const dept=document.getElementById('u-dept').value.trim();
+  const role=document.getElementById('u-role').value;
+  const pw=document.getElementById('u-pw').value.trim();
+  const msg=document.getElementById('u-msg');
+  if(!name||!pw){msg.style.color='var(--red)';msg.textContent='이름과 비밀번호는 필수입니다';return;}
+  const users=getUsers();
+  if(users.find(u=>u.name===name)){msg.style.color='var(--red)';msg.textContent='이미 존재하는 이름입니다';return;}
+  users.push({name,tel,dept,role,pw});
+  saveUsers(users);
+  msg.style.color='var(--green)';msg.textContent='✅ 추가되었습니다';
+  ['u-name','u-tel','u-dept','u-pw'].forEach(id=>document.getElementById(id).value='');
+  renderUserList();
+  initLoginSelect();
+  setTimeout(()=>msg.textContent='',2000);
+}
+
+function delUser(name){
+  if(name==='admin'){alert('admin은 삭제할 수 없습니다');return;}
+  if(!confirm(name+' 사용자를 삭제하시겠습니까?'))return;
+  const users=getUsers().filter(u=>u.name!==name);
+  saveUsers(users);
+  renderUserList();
+  initLoginSelect();
+}
+
+// ══════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════
+(function init(){
+  P=loadDB();
+  initLoginSelect();
+  const cu=getCU();
+  if(cu){
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app').style.display='flex';
+    document.getElementById('hdr-user').textContent=cu.name+' ('+cu.dept+')';
+    applyRole(cu);
+  }
+  document.getElementById('db-count').textContent=P.length;
+})();
+</script>
+</body>
+</html>
