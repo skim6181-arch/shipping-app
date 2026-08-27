@@ -1331,7 +1331,7 @@ window.saveVehicleNew = function(){
   if(!num){toast('차량번호를 입력하세요');return;}
   if(!len||len<1){toast('길이를 올바르게 입력하세요');return;}
   vehicles[num]={num,len,wid,ht};
-  set(ref(db,'vehicles/'+num),{num,len,wid,ht}).then(()=>{
+  db.ref('vehicles/'+num).set({num,len,wid,ht}).then(()=>{
     toast('✅ 저장 완료');
     try{localStorage.setItem('vehicles',JSON.stringify(vehicles));}catch(e){}
     renderVehicleMgmtPage(document.getElementById('mainContent'));
@@ -1352,7 +1352,7 @@ window.editVehicleNew = function(num){
 window.deleteVehicleNew = function(num){
   if(!confirm(num+' 차량을 삭제하시겠습니까?')) return;
   delete vehicles[num];
-  remove(ref(db,'vehicles/'+num)).then(()=>{
+  db.ref('vehicles/'+num).remove().then(()=>{
     toast('🗑️ 삭제 완료');
     try{localStorage.setItem('vehicles',JSON.stringify(vehicles));}catch(e){}
     renderVehicleMgmtPage(document.getElementById('mainContent'));
