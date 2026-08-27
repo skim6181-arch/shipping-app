@@ -326,8 +326,6 @@ let selectedVehicle = null;
 let palletCount = 1;
 let palletIncluded = false;
 let currentTab = '';
-let ordersRef = null;
-let logRef = null;
 
 // ===== 초성 변환 =====
 const CHOSEONG = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
@@ -362,8 +360,6 @@ function genId(){return Date.now().toString(36)+Math.random().toString(36).slice
 // ===== 로그인 =====
 window.doLogout = function(){
   curUser=null; curRole=null; orderItems=[]; selectedVehicle=null;
-  if(ordersRef){ ordersRef.off(); ordersRef=null; }
-  if(logRef){ logRef.off(); logRef=null; }
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('mainApp').style.display='none';
 };
@@ -920,16 +916,20 @@ window.uploadDB = function(input){
 
 // ===== 지원팀: 출고내역 =====
 function renderSupportList(c){
-  c.innerHTML=`<div id="ordersList"><div class="empty-msg">로딩 중...</div></div>`;
-  if(ordersRef){ ordersRef.off(); ordersRef=null; }
-  ordersRef=db.ref('orders');
-  ordersRef.on('value', snap=>{
+  c.innerHTML=`<div style="text-align:right;margin-bottom:8px;">
+    <button class="btn btn-gray btn-sm" onclick="renderSupportList(document.getElementById('mainContent'))">🔄 새로고침</button>
+  </div>
+  <div id="ordersList"><div class="empty-msg">로딩 중...</div></div>`;
+  db.ref('orders').once('value').then(snap=>{
     const data=snap.val()||{};
     const orders=Object.values(data).sort((a,b)=>b.createdAt-a.createdAt);
     const ol=document.getElementById('ordersList');
     if(!ol) return;
     if(!orders.length){ol.innerHTML='<div class="empty-msg">출고 내역이 없습니다</div>';return;}
     ol.innerHTML=orders.map(o=>renderOrderCard(o)).join('');
+  }).catch(()=>{
+    const ol=document.getElementById('ordersList');
+    if(ol) ol.innerHTML='<div class="empty-msg">❌ 로드 실패. 새로고침 해주세요.</div>';
   });
 }
 
@@ -967,6 +967,7 @@ window.confirmOrder = function(id){
   db.ref(`orders/${id}`).update({status:'done'}).then(()=>{
     writeLog('order_confirm', `주문ID:${id}`);
     toast('✅ 확인완료 처리');
+    setTimeout(()=>renderSupportList(document.getElementById('mainContent')),500);
   });
 };
 
@@ -1042,15 +1043,16 @@ function renderAdminOrders(c){
       <button class="btn btn-red" style="width:100%;" onclick="clearAllOrders()">🗑️ 출고내역 전체 초기화</button>
     </div>
     <div id="ordersList"><div class="empty-msg">로딩 중...</div></div>`;
-  if(ordersRef){ ordersRef.off(); ordersRef=null; }
-  ordersRef=db.ref('orders');
-  ordersRef.on('value', snap=>{
+  db.ref('orders').once('value').then(snap=>{
     const data=snap.val()||{};
     const orders=Object.values(data).sort((a,b)=>b.createdAt-a.createdAt);
     const ol=document.getElementById('ordersList');
     if(!ol) return;
     if(!orders.length){ol.innerHTML='<div class="empty-msg">출고 내역이 없습니다</div>';return;}
     ol.innerHTML=orders.map(o=>renderOrderCard(o)).join('');
+  }).catch(()=>{
+    const ol=document.getElementById('ordersList');
+    if(ol) ol.innerHTML='<div class="empty-msg">❌ 로드 실패. 새로고침 해주세요.</div>';
   });
 }
 
@@ -1137,7 +1139,6 @@ window.deleteUser = function(id){
 };
 
 // ===== 관리자: 로그 조회 =====
-let logListener = null;
 
 function renderAdminLog(c){
   c.innerHTML=`
@@ -1147,9 +1148,7 @@ function renderAdminLog(c){
 </div>
 <div id="logList"><div class="empty-msg">로딩 중...</div></div>`;
 
-  if(logListener){ logListener(); logListener=null; }
-  logRef=db.ref('logs');
-  logRef.on('value', snap=>{
+  db.ref('logs').once('value').then(snap=>{
     const data = snap.val()||{};
     const logs = Object.values(data).sort((a,b)=>b.ts-a.ts);
     const el = document.getElementById('logList');
@@ -1177,6 +1176,9 @@ function renderAdminLog(c){
         <div style="font-size:11px;color:#94a3b8;white-space:nowrap;">${log.time}</div>
       </div>`;
     }).join('');
+  }).catch(()=>{
+    const el=document.getElementById('logList');
+    if(el) el.innerHTML='<div class="empty-msg">❌ 로그 로드 실패</div>';
   });
 }
 
@@ -1206,6 +1208,11 @@ window.deleteOrder = function(id){
   if(!confirm('이 출고 내역을 삭제하시겠습니까?')) return;
   db.ref(`orders/${id}`).remove().then(()=>{
     toast('🗑️ 삭제되었습니다');
+    setTimeout(()=>{
+      const c=document.getElementById('mainContent');
+      if(curRole==='support') renderSupportList(c);
+      else renderAdminOrders(c);
+    },500);
   }).catch(()=>toast('❌ 삭제 실패'));
 };
 
