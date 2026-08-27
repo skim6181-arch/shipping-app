@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>B2C 수주 공유기</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:#f0f2f5;color:#1a1a2e;font-size:15px;}
@@ -231,9 +233,8 @@ input:focus{border-color:var(--blue);}
 <div id="printArea" style="display:none;"></div>
 <div class="toast" id="toast"></div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, get, push, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+<script>
+
 
 const FB_CFG = {
   apiKey:"AIzaSyAywRUBY2ej0X1MMurBQg6JsbpmnDQx5KE",
@@ -245,8 +246,8 @@ const FB_CFG = {
   appId:"1:741367205700:web:258522645c64118fdd9111"
 };
 
-const fapp = initializeApp(FB_CFG);
-const db = getDatabase(fapp);
+const fapp = firebase.initializeApp(FB_CFG);
+const db = firebase.database();
 
 // ===== 사용자 정의 =====
 let USERS = [
@@ -325,7 +326,8 @@ let selectedVehicle = null;
 let palletCount = 1;
 let palletIncluded = false;
 let currentTab = '';
-let ordersListener = null;
+let ordersRef = null;
+let logRef = null;
 
 // ===== 초성 변환 =====
 const CHOSEONG = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
@@ -360,8 +362,8 @@ function genId(){return Date.now().toString(36)+Math.random().toString(36).slice
 // ===== 로그인 =====
 window.doLogout = function(){
   curUser=null; curRole=null; orderItems=[]; selectedVehicle=null;
-  if(ordersListener) { ordersListener(); ordersListener=null; }
-  if(logListener) { logListener(); logListener=null; }
+  if(ordersRef){ ordersRef.off(); ordersRef=null; }
+  if(logRef){ logRef.off(); logRef=null; }
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('mainApp').style.display='none';
 };
@@ -418,13 +420,21 @@ window.checkPin = function(){
 };
 
 (function initLogin(){
-  // Firebase에서 사용자 목록 로드 시도
-  get(ref(db,'users')).then(snap=>{
-    if(snap.val()) USERS=Object.values(snap.val());
-    buildLoginGrid();
-  }).catch(()=>buildLoginGrid());
-  // 저장된 PIN 로드
-  get(ref(db,'settings/adminPin')).then(snap=>{ if(snap.val()) adminPin=snap.val(); }).catch(()=>{});
+  // 일단 기본 USERS로 그리드 먼저 표시 (타이밍 문제 방지)
+  buildLoginGrid();
+  // Firebase에서 사용자 목록 추가 로드 (덮어쓰기)
+  function tryLoadUsers(retry){
+    if(!db){ if(retry>0) setTimeout(()=>tryLoadUsers(retry-1),300); return; }
+    db.ref('users').once('value').then(snap=>{
+      const val=snap.val();
+      if(val && typeof val==='object'){
+        const arr=Object.values(val);
+        if(arr.length>0){ USERS=arr; buildLoginGrid(); }
+      }
+    }).catch(()=>{});
+    db.ref('settings/adminPin').once('value').then(snap=>{ if(snap.val()) adminPin=snap.val(); }).catch(()=>{});
+  }
+  setTimeout(()=>tryLoadUsers(5), 500);
 })();
 
 // ===== 탭 전환 =====
@@ -450,7 +460,7 @@ window.showTab = function(team, tab){
 
 // ===== 차량 로드 =====
 function loadVehicles(){
-  get(ref(db,'vehicles')).then(snap=>{
+  db.ref('vehicles').once('value').then(snap=>{
     vehicles=snap.val()||{};
     try{localStorage.setItem('vehicles',JSON.stringify(vehicles));}catch(e){}
   }).catch(()=>{
@@ -459,7 +469,7 @@ function loadVehicles(){
 }
 
 function loadProducts(){
-  get(ref(db,'products')).then(snap=>{
+  db.ref('products').once('value').then(snap=>{
     if(snap.val()&&Array.isArray(snap.val())&&snap.val().length>0){
       PRODUCTS=snap.val();
     }
@@ -478,7 +488,7 @@ function writeLog(action, detail){
     action,   // 'login' | 'order_confirm'
     detail,   // 납품처명, 주문ID 등 간략 메모
   };
-  set(ref(db, `logs/${logId}`), logData).catch(()=>{});
+  db.ref(`logs/${logId}`).set(logData).catch(()=>{});
 }
 
 // ===== 영업팀: 출고등록 =====
@@ -794,7 +804,7 @@ window.sendOrder = function(){
     status:'new',
     createdAt:Date.now()
   };
-  set(ref(db,`orders/${orderId}`),orderData).then(()=>{
+  db.ref(`orders/${orderId}`).set(orderData).then(()=>{
     // 지원팀 전원 수신자로 자동 설정
     const supporters = USERS.filter(u => u.role === 'support' && u.phone);
 
@@ -885,7 +895,7 @@ window.uploadDB = function(input){
       }
 
       // Firebase에 저장 + 로컬 업데이트
-      set(ref(db,'products'),newProducts).then(()=>{
+      db.ref('products').set(newProducts).then(()=>{
         PRODUCTS=newProducts;
         statusEl.innerHTML=`<span style="color:var(--green);">✅ 업데이트 완료! ${newProducts.length}개 제품 반영됨</span>`;
         previewEl.innerHTML=`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:9px;padding:12px;font-size:13px;">
@@ -911,8 +921,9 @@ window.uploadDB = function(input){
 // ===== 지원팀: 출고내역 =====
 function renderSupportList(c){
   c.innerHTML=`<div id="ordersList"><div class="empty-msg">로딩 중...</div></div>`;
-  if(ordersListener) ordersListener();
-  ordersListener=onValue(ref(db,'orders'),snap=>{
+  if(ordersRef){ ordersRef.off(); ordersRef=null; }
+  ordersRef=db.ref('orders');
+  ordersRef.on('value', snap=>{
     const data=snap.val()||{};
     const orders=Object.values(data).sort((a,b)=>b.createdAt-a.createdAt);
     const ol=document.getElementById('ordersList');
@@ -953,7 +964,7 @@ function renderOrderCard(o){
 
 window.confirmOrder = function(id){
   if(!confirm('확인완료 처리하시겠습니까?')) return;
-  update(ref(db,`orders/${id}`),{status:'done'}).then(()=>{
+  db.ref(`orders/${id}`).update({status:'done'}).then(()=>{
     writeLog('order_confirm', `주문ID:${id}`);
     toast('✅ 확인완료 처리');
   });
@@ -964,7 +975,7 @@ window.confirmOrder = function(id){
 // VEH_W, VEH_H 전역 상수 사용
 // ===========================
 window.openOrderDetail = function(id){
-  get(ref(db,`orders/${id}`)).then(snap=>{
+  db.ref(`orders/${id}`).once('value').then(snap=>{
     const o=snap.val();
     if(!o){toast('데이터를 찾을 수 없습니다');return;}
 
@@ -1021,7 +1032,7 @@ window.openOrderDetail = function(id){
 // ===== 삭제 기능 =====
 window.clearAllOrders = function(){
   if(!confirm('출고내역을 전체 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
-  set(ref(db,'orders'),null).then(()=>toast('🗑️ 전체 초기화 완료')).catch(()=>toast('❌ 삭제 실패'));
+  db.ref('orders').set(null).then(()=>toast('🗑️ 전체 초기화 완료')).catch(()=>toast('❌ 삭제 실패'));
 };
 
 // ===== 관리자: 출고내역 =====
@@ -1031,8 +1042,9 @@ function renderAdminOrders(c){
       <button class="btn btn-red" style="width:100%;" onclick="clearAllOrders()">🗑️ 출고내역 전체 초기화</button>
     </div>
     <div id="ordersList"><div class="empty-msg">로딩 중...</div></div>`;
-  if(ordersListener) ordersListener();
-  ordersListener=onValue(ref(db,'orders'),snap=>{
+  if(ordersRef){ ordersRef.off(); ordersRef=null; }
+  ordersRef=db.ref('orders');
+  ordersRef.on('value', snap=>{
     const data=snap.val()||{};
     const orders=Object.values(data).sort((a,b)=>b.createdAt-a.createdAt);
     const ol=document.getElementById('ordersList');
@@ -1095,7 +1107,7 @@ window.saveUser = function(){
   if(idx>=0) USERS[idx]=uData; else USERS.push(uData);
   const saveObj={};
   USERS.forEach(u=>{ saveObj[u.id]=u; });
-  set(ref(db,'users'),saveObj).then(()=>{
+  db.ref('users').set(saveObj).then(()=>{
     toast('✅ 사용자 저장 완료');
     buildLoginGrid();
     renderUserMgmt(document.getElementById('mainContent'));
@@ -1117,7 +1129,7 @@ window.deleteUser = function(id){
   USERS=USERS.filter(x=>x.id!==id);
   const saveObj={};
   USERS.forEach(u=>{ saveObj[u.id]=u; });
-  set(ref(db,'users'),saveObj).then(()=>{
+  db.ref('users').set(saveObj).then(()=>{
     toast('🗑️ 삭제 완료');
     buildLoginGrid();
     renderUserMgmt(document.getElementById('mainContent'));
@@ -1136,7 +1148,8 @@ function renderAdminLog(c){
 <div id="logList"><div class="empty-msg">로딩 중...</div></div>`;
 
   if(logListener){ logListener(); logListener=null; }
-  logListener = onValue(ref(db,'logs'), snap=>{
+  logRef=db.ref('logs');
+  logRef.on('value', snap=>{
     const data = snap.val()||{};
     const logs = Object.values(data).sort((a,b)=>b.ts-a.ts);
     const el = document.getElementById('logList');
@@ -1170,7 +1183,7 @@ function renderAdminLog(c){
 window.clearAllLogs = function(){
   if(!confirm('로그를 전체 초기화하시겠습니까?')) return;
   if(logListener){ logListener(); logListener=null; }
-  set(ref(db,'logs'),null).then(()=>{
+  db.ref('logs').set(null).then(()=>{
     toast('🗑️ 로그 초기화 완료');
     renderAdminLog(document.getElementById('mainContent'));
   }).catch(()=>toast('❌ 초기화 실패'));
@@ -1181,7 +1194,7 @@ window.changePin = function(){
   const p2=(document.getElementById('newPin2').value||'').trim();
   if(!p1||p1.length<4){toast('PIN은 4자리 이상이어야 합니다');return;}
   if(p1!==p2){toast('PIN이 일치하지 않습니다');return;}
-  set(ref(db,'settings/adminPin'),p1).then(()=>{
+  db.ref('settings/adminPin').set(p1).then(()=>{
     adminPin=p1;
     toast('✅ PIN 변경 완료');
     document.getElementById('newPin').value='';
@@ -1191,7 +1204,7 @@ window.changePin = function(){
 
 window.deleteOrder = function(id){
   if(!confirm('이 출고 내역을 삭제하시겠습니까?')) return;
-  remove(ref(db,`orders/${id}`)).then(()=>{
+  db.ref(`orders/${id}`).remove().then(()=>{
     toast('🗑️ 삭제되었습니다');
   }).catch(()=>toast('❌ 삭제 실패'));
 };
@@ -1200,7 +1213,7 @@ window.deleteOrder = function(id){
 // ★ printOrder() — 부피 계산 수정
 // ===========================
 window.printOrder = function(orderId){
-  get(ref(db,`orders/${orderId}`)).then(snap=>{
+  db.ref(`orders/${orderId}`).once('value').then(snap=>{
     const o=snap.val();
     if(!o){toast('주문 정보를 찾을 수 없습니다');return;}
 
