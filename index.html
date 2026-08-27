@@ -37,6 +37,12 @@ body{font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:#f0f
 
 /* 탭 */
 .tabs{display:flex;background:#fff;border-bottom:2px solid var(--border);position:sticky;top:52px;z-index:90;}
+/* 마퀴 알림 */
+.marquee-wrap{background:#fef3c7;border-bottom:2px solid #fcd34d;padding:6px 0;overflow:hidden;position:sticky;top:52px;z-index:95;display:none;}
+.marquee-track{display:flex;white-space:nowrap;animation:marquee-scroll 20s linear infinite;}
+.marquee-track:hover{animation-play-state:paused;}
+@keyframes marquee-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.marquee-text{font-size:13px;font-weight:600;color:#92400e;padding:0 40px;}
 .tab{flex:1;padding:12px 4px;border:none;background:none;font-size:13px;font-weight:600;color:var(--gray);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .15s;}
 .tab.active{color:var(--blue);border-bottom-color:var(--blue);}
 
@@ -222,6 +228,14 @@ input:focus{border-color:var(--blue);}
     <button class="tab" onclick="showTab('admin','db')">🔄 DB업데이트</button>
     <button class="tab" onclick="showTab('admin','users')">👥 사용자관리</button>
     <button class="tab" onclick="showTab('admin','log')">📜 로그</button>
+  </div>
+
+  <!-- 미확인 수주 마퀴 알림 -->
+  <div class="marquee-wrap" id="marqueeWrap">
+    <div class="marquee-track" id="marqueeTrack">
+      <span class="marquee-text" id="marqueeText1"></span>
+      <span class="marquee-text" id="marqueeText2"></span>
+    </div>
   </div>
 
   <div class="content" id="mainContent"></div>
@@ -472,6 +486,27 @@ function loadProducts(){
   }).catch(()=>{});
 }
 
+// ===== 미확인 수주 마퀴 알림 =====
+function checkUnconfirmedOrders(){
+  if(curRole !== 'support') return; // 지원팀만 표시
+  db.ref('orders').once('value').then(snap=>{
+    const data = snap.val()||{};
+    const unconfirmed = Object.values(data).filter(o=>o.status!=='done');
+    const wrap = document.getElementById('marqueeWrap');
+    if(!wrap) return;
+    if(!unconfirmed.length){
+      wrap.style.display='none';
+      return;
+    }
+    const msg = unconfirmed.map(o=>`📦 ${o.user}이(가) [${o.client||''}] 수주등록 하였습니다. 확인 바랍니다!`).join('  ·  ');
+    const t1 = document.getElementById('marqueeText1');
+    const t2 = document.getElementById('marqueeText2');
+    if(t1) t1.textContent = msg + '  ·  ';
+    if(t2) t2.textContent = msg + '  ·  ';
+    wrap.style.display='block';
+  }).catch(()=>{});
+}
+
 // ===== 로그 기록 =====
 function writeLog(action, detail){
   const logId = Date.now().toString(36)+Math.random().toString(36).slice(2,4);
@@ -539,7 +574,7 @@ function renderSalesReg(c){
 </div>
 
 <div class="section" id="sendSection" style="display:none;">
-  <button class="btn btn-green" style="width:100%;padding:16px;font-size:17px;letter-spacing:.5px;" onclick="sendOrder()">✅ 출고 최종 완료 & 문자 알림</button>
+  <button class="btn btn-green" style="width:100%;padding:16px;font-size:17px;letter-spacing:.5px;" onclick="sendOrder()">✅ 출고 최종 완료 & 알림 발송</button>
 </div>`;
 
   renderItemList();
@@ -812,13 +847,24 @@ window.sendOrder = function(){
     if(memo) smsBody += `전달: ${memo}\n`;
     smsBody += `일시: ${nowStr()}`;
 
+    // 문자 발송
     if(supporters.length > 0){
       const phones = supporters.map(u => u.phone).join(';');
       window.location.href = `sms:${phones}?body=${encodeURIComponent(smsBody)}`;
-    } else {
-      toast('⚠️ 지원팀 연락처가 없습니다. 사용자 관리에서 등록해주세요.');
+    }
+    // 이메일 발송 (이메일 등록된 지원팀원)
+    const emailTargets = supporters.filter(u => u.email);
+    if(emailTargets.length > 0){
+      const emails = emailTargets.map(u => u.email).join(',');
+      const subject = encodeURIComponent(`[B2C수주공유기] ${selectedClient} 수주 등록`);
+      const body = encodeURIComponent(smsBody);
+      setTimeout(()=>{ window.open(`mailto:${emails}?subject=${subject}&body=${body}`,'_blank'); }, 1500);
+    }
+    if(!supporters.length && !emailTargets.length){
+      toast('⚠️ 지원팀 연락처/이메일이 없습니다.');
     }
     toast('✅ 출고 등록 완료!');
+    checkUnconfirmedOrders();
     orderItems=[]; selectedClient=null;
     renderSalesReg(document.getElementById('mainContent'));
   }).catch(()=>toast('❌ 저장 실패, 다시 시도해주세요'));
@@ -916,6 +962,7 @@ window.uploadDB = function(input){
 
 // ===== 지원팀: 출고내역 =====
 function renderSupportList(c){
+  checkUnconfirmedOrders();
   c.innerHTML=`<div style="text-align:right;margin-bottom:8px;">
     <button class="btn btn-gray btn-sm" onclick="renderSupportList(document.getElementById('mainContent'))">🔄 새로고침</button>
   </div>
@@ -967,7 +1014,10 @@ window.confirmOrder = function(id){
   db.ref(`orders/${id}`).update({status:'done'}).then(()=>{
     writeLog('order_confirm', `주문ID:${id}`);
     toast('✅ 확인완료 처리');
-    setTimeout(()=>renderSupportList(document.getElementById('mainContent')),500);
+    setTimeout(()=>{
+      renderSupportList(document.getElementById('mainContent'));
+      checkUnconfirmedOrders();
+    },500);
   });
 };
 
@@ -1071,6 +1121,7 @@ function renderUserMgmt(c){
   </div>
   <div class="input-row"><span class="input-label">이름</span><input type="text" id="uName" placeholder="이름"></div>
   <div class="input-row"><span class="input-label">전화번호</span><input type="text" id="uPhone" placeholder="010-0000-0000"></div>
+  <div class="input-row"><span class="input-label">이메일</span><input type="email" id="uEmail" placeholder="example@email.com"></div>
   <button class="btn btn-blue" style="width:100%;margin-top:4px;" onclick="saveUser()">💾 저장</button>
 </div>
 <div class="section">
@@ -1080,7 +1131,7 @@ function renderUserMgmt(c){
       <div>
         <span style="font-size:14px;font-weight:700;">${u.name}</span>
         <span style="font-size:12px;color:var(--gray);margin-left:8px;">${u.role==='sales'?'영업팀':'생산지원팀'}</span>
-        <div style="font-size:12px;color:#64748b;margin-top:2px;">${u.phone||'-'}</div>
+        <div style="font-size:12px;color:#64748b;margin-top:2px;">${u.phone||'-'} ${u.email?'· '+u.email:''}</div>
       </div>
       <div style="display:flex;gap:5px;">
         <button class="btn btn-gray btn-sm" onclick="editUser('${u.id}')">✏️</button>
@@ -1099,12 +1150,13 @@ function renderUserMgmt(c){
 window.saveUser = function(){
   const name=(document.getElementById('uName').value||'').trim();
   const phone=(document.getElementById('uPhone').value||'').trim();
+  const email=(document.getElementById('uEmail').value||'').trim();
   const role=document.getElementById('uRole').value;
   if(!name){toast('이름을 입력하세요');return;}
   const id='u'+Date.now().toString(36);
   const existing=USERS.find(u=>u.name===name&&u.role!=='admin');
   const uid=existing?existing.id:id;
-  const uData={id:uid,name,role,phone};
+  const uData={id:uid,name,role,phone,email};
   const idx=USERS.findIndex(u=>u.id===uid);
   if(idx>=0) USERS[idx]=uData; else USERS.push(uData);
   const saveObj={};
@@ -1121,6 +1173,7 @@ window.editUser = function(id){
   if(!u) return;
   document.getElementById('uName').value=u.name;
   document.getElementById('uPhone').value=u.phone||'';
+  document.getElementById('uEmail').value=u.email||'';
   document.getElementById('uRole').value=u.role;
   toast('수정 후 저장 버튼을 누르세요');
 };
@@ -1388,7 +1441,10 @@ window.doLogin = function(){
   loadProducts();
   writeLog('login', `역할:${roleLabel(curRole)}`);
   if(curRole==='sales') showTab('sales','reg');
-  else if(curRole==='support') showTab('support','list');
+  else if(curRole==='support'){
+    showTab('support','list');
+    setTimeout(checkUnconfirmedOrders, 1000);
+  }
   else showTab('admin','orders');
 };
 
