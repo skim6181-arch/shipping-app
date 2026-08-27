@@ -1184,8 +1184,7 @@ function renderAdminLog(c){
 
 window.clearAllLogs = function(){
   if(!confirm('로그를 전체 초기화하시겠습니까?')) return;
-  if(logListener){ logListener(); logListener=null; }
-  db.ref('logs').set(null).then(()=>{
+  db.ref('logs').remove().then(()=>{
     toast('🗑️ 로그 초기화 완료');
     renderAdminLog(document.getElementById('mainContent'));
   }).catch(()=>toast('❌ 초기화 실패'));
